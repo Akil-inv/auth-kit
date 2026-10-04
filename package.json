@@ -1,6 +1,6 @@
 {
   "name": "@akil-inv/auth-kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Reusable authentication for NestJS + React apps: sign-in with two-factor, email verification, password reset, and admin user management. Each app keeps its own users table.",
   "license": "UNLICENSED",
   "private": true,
@@ -53,7 +53,7 @@
     "pack:release": "npm run build && npm pack"
   },
   "dependencies": {
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^10.0.14",
     "qrcode": "^1.5.4"
   },
   "peerDependencies": {
@@ -74,7 +74,7 @@
     "@nestjs/platform-express": "^10.4.22",
     "@nestjs/testing": "^10.4.22",
     "@types/node": "^20.19.43",
-    "@types/nodemailer": "^6.4.24",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.31",
