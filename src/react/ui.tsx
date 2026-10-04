@@ -109,9 +109,16 @@ export function LinkBox({ link, onClose }: { link: Link; onClose?: () => void })
   const { t } = useAuthKit();
   const url = linkUrl(link);
   const expires = new Date(link.expiresAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const failed = link.sent === false;
   return (
-    <div className={`space-y-2 ${t.success}`}>
-      <p>{PURPOSE_TEXT[link.purpose]} Send it to <strong>{link.to}</strong>. It works once, until {expires}.</p>
+    <div className={`space-y-2 ${failed ? t.error : t.success}`}>
+      {link.sent ? (
+        <p>{PURPOSE_TEXT[link.purpose]} <strong>Emailed to {link.to}.</strong> It works once, until {expires}. You can also copy it:</p>
+      ) : failed ? (
+        <p>{PURPOSE_TEXT[link.purpose]} <strong>It couldn&apos;t be emailed</strong>{link.sendError ? ` (${link.sendError})` : ''}, so copy it and send it to <strong>{link.to}</strong> yourself. It works once, until {expires}.</p>
+      ) : (
+        <p>{PURPOSE_TEXT[link.purpose]} Send it to <strong>{link.to}</strong>. It works once, until {expires}.</p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Link" className={`${t.input} min-w-0 flex-1 font-mono text-xs`} />
         <CopyButton text={url} label="Copy link" />

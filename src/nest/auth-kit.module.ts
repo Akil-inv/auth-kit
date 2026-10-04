@@ -131,6 +131,18 @@ function makeController(path: string): Type<any> {
       return run(() => this.auth.adminSummaries(a, Array.isArray(b?.userIds) ? b.userIds : []));
     }
 
+    @Get('admin/settings')
+    async settings(@Headers('authorization') h: string) {
+      const a = await this.actor(h);
+      return run(() => this.auth.adminSettings(a));
+    }
+
+    @Post('admin/test-email') @HttpCode(200)
+    async testEmail(@Headers('authorization') h: string, @Body() b: { to: string }) {
+      const a = await this.actor(h);
+      return run(() => this.auth.adminTestEmail(a, b?.to));
+    }
+
     @Get('admin/requests')
     async requests(@Headers('authorization') h: string) {
       const a = await this.actor(h);

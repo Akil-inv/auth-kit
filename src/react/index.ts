@@ -2,4 +2,4 @@ export { AuthKitProvider, useAuthKit, lightTheme, LinkBox, CopyButton } from './
 export type { AuthTheme } from './ui';
 export { LoginForm, TwoFactorStep, ForgotPasswordForm, ResetPasswordForm, VerifyEmail } from './sign-in';
 export { AccountSecurity } from './account';
-export { UserSecurityActions, UserSecurityBadges, AuthRequestsPanel, useUserSecurity } from './admin';
+export { UserSecurityActions, UserSecurityBadges, AuthRequestsPanel, useUserSecurity, EmailStatus } from './admin';

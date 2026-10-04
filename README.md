@@ -11,7 +11,7 @@ Sign-in and account management you can add to any NestJS + React app:
 
 Your app keeps its own users table, with its own names, roles and so on. auth-kit reaches it through a small adapter, and keeps its own security state in three tables of its own.
 
-**Links without email.** Out of the box nothing is emailed. An admin creates a link and passes it on. Forgotten passwords and email changes wait in an admin queue. Plug in a `Delivery` later to email links automatically.
+**Email is optional.** Out of the box nothing is emailed: an admin creates a link and passes it on, and forgotten passwords and email changes wait in an admin queue. Add SMTP settings when a mail server is available (step 6), and links are then emailed automatically.
 
 ## Contents
 
@@ -124,11 +124,51 @@ You need these pages, each wrapped in `AuthKitProvider`:
 
 Then pass `theme` (a partial `AuthTheme` of class names) to match your design. Not on Tailwind? Pass your own class names.
 
-### 6. Optional
+### 6. Email (optional, any time later)
+
+Without email, auth-kit works by hand:
+- An admin copies invite and reset links and sends them however suits (Teams, chat, their own email).
+- Forgotten passwords and email changes wait in the admin's Sign-in requests panel.
+
+When an SMTP server is available, it can be a company relay, Amazon SES (SMTP interface), Microsoft 365, Google Workspace or SendGrid. Pass it as `delivery`, along with `publicUrl`:
+
+```ts
+import { smtpDelivery, smtpDeliveryFromEnv } from '@akil-inv/auth-kit/server';
+
+config: {
+  ...,
+  publicUrl: 'https://hr.example.com',     // emailed links need the full address
+  delivery: smtpDeliveryFromEnv(),         // undefined (email off) unless SMTP_HOST is set
+  // or: smtpDelivery({ host, port: 587, user, password, from: 'HR <no-reply@example.com>' })
+}
+```
+
+| Environment variable | Meaning |
+|---|---|
+| `SMTP_HOST` | Turns email on |
+| `SMTP_PORT` | 587 by default; 465 for TLS from the start; 25 for an internal relay |
+| `SMTP_SECURE` | `true` for port 465 |
+| `SMTP_USER`, `SMTP_PASSWORD` | Leave empty for a relay that needs no sign-in |
+| `MAIL_FROM` | Required, e.g. `HR Scoring <no-reply@example.com>` |
+| `MAIL_REPLY_TO` | Optional |
+| `SMTP_REJECT_UNAUTHORIZED` | `false` only for an internal relay with its own certificate |
+
+**With email on:**
+- Forgot-password and email-change links go straight to the person. Email-change links go to the *new* address.
+- Invite and reset links an admin creates are emailed **and** still shown to the admin to copy.
+- `EmailStatus` (React) shows admins which mode is on and has **Send a test email**.
+
+**If a send fails**, nothing is lost:
+- The admin sees the link marked "couldn't be emailed", with the reason.
+- Forgotten passwords and email changes fall back to the admin queue.
+
+**Wording.** Change it with `smtpDelivery({ templates: { invite: (v) => ({ subject, text, html }) } })`.
+
+### 7. Optional
 
 | Option | What it does |
 |---|---|
-| `delivery: { send({ link, user }) }` | Emails links instead of queueing them for an admin. Also set `publicUrl` so links are absolute. |
+| `delivery` | Emails links (see step 6). Any object with `send({ link, user, appName })` works, e.g. an API-based mail service. |
 | `secretBox: { seal, open }` | Encrypts two-factor secrets at rest, e.g. with your app's field encryption. |
 | `onEvent(e)` | Every sign-in, failure, reset, change and admin action, for your audit log. |
 | `passwordMinLength` | Minimum password length. Default 10. |
@@ -166,6 +206,8 @@ All routes are under `api/auth` by default.
 
 | Method | Route | Body |
 |---|---|---|
+| GET | `admin/settings` | → `{email: {on, description}}` |
+| POST | `admin/test-email` | `{to}` |
 | POST | `admin/summaries` | `{userIds}` |
 | GET | `admin/requests` | |
 | POST | `admin/requests/:id/approve` | |

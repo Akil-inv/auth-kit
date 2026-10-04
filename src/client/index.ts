@@ -8,7 +8,7 @@ export type SignedIn = { status: 'signed_in'; accessToken: string; user: ClientU
 export type NeedsCode = { status: 'two_factor_required'; challenge: string };
 export type LoginResult = SignedIn | NeedsCode;
 export type LinkPurpose = 'reset_password' | 'invite' | 'verify_email' | 'change_email';
-export type Link = { purpose: LinkPurpose; path: string; url: string | null; expiresAt: string; to: string };
+export type Link = { purpose: LinkPurpose; path: string; url: string | null; expiresAt: string; to: string; sent?: boolean; sendError?: string };
 export type UserSecurity = {
   userId: string; emailVerified: boolean; twoFactor: boolean; pendingEmail: string | null;
   lastLoginAt: string | null; passwordSet: boolean;
@@ -80,6 +80,8 @@ export function createAuthClient(options: AuthClientOptions = {}) {
 
     // Admin
     admin: {
+      settings: () => call<{ email: { on: boolean; description: string | null } }>('GET', '/admin/settings'),
+      testEmail: (to: string) => post<{ message: string }>('/admin/test-email', { to }),
       summaries: (userIds: string[]) => post<Record<string, UserSecurity>>('/admin/summaries', { userIds }),
       requests: () => call<OpenRequest[]>('GET', '/admin/requests'),
       approveRequest: (id: string) => post<Link>(`/admin/requests/${encodeURIComponent(id)}/approve`),

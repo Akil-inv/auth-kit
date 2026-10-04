@@ -172,3 +172,41 @@ export function AuthRequestsPanel({ onChanged, title = 'Sign-in requests' }: { o
     </section>
   );
 }
+
+/**
+ * For admins: whether sign-in links are emailed or passed on by hand, with a
+ * test send when email is on. Settings themselves live on the server.
+ */
+export function EmailStatus({ defaultTo = '' }: { defaultTo?: string }) {
+  const { client, t } = useAuthKit();
+  const { busy, error, run } = useAction();
+  const [s, setS] = useState<{ on: boolean; description: string | null } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState(defaultTo);
+  const [done, setDone] = useState<string | null>(null);
+  useEffect(() => { client.admin.settings().then((r) => setS(r.email)).catch(() => setS(null)); }, [client]);
+  if (!s) return null;
+  return (
+    <div className="space-y-2">
+      <p className={t.muted}>
+        {s.on
+          ? <>Sign-in links are <strong>emailed</strong>{s.description ? ` (${s.description})` : ''}. You can still copy any link.</>
+          : <>No email server is set up: you copy sign-in links and send them yourself. Forgotten passwords and email changes appear here for you to act on.</>}
+        {s.on && !open && <> <button type="button" className={t.link} onClick={() => { setOpen(true); setDone(null); }}>Send a test email</button></>}
+      </p>
+      {s.on && open && (
+        <form className="flex flex-wrap items-end gap-2" noValidate onSubmit={async (e: FormEvent) => {
+          e.preventDefault();
+          const r = await run(() => client.admin.testEmail(to));
+          if (r) { setDone(r.message); setOpen(false); }
+        }}>
+          <div className="min-w-0 flex-1"><Field label="Send a test to" id="test-email-to" type="email" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+          <button type="submit" className={t.button} disabled={busy || !to}>{busy ? 'Sending…' : 'Send'}</button>
+          <button type="button" className={t.secondary} onClick={() => setOpen(false)}>Cancel</button>
+        </form>
+      )}
+      <Alert kind="success">{done}</Alert>
+      <Alert kind="error">{error}</Alert>
+    </div>
+  );
+}

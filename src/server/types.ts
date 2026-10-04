@@ -44,7 +44,12 @@ export type Db = { query<T = Record<string, unknown>>(sql: string, params?: unkn
 export type LinkPurpose = 'reset_password' | 'invite' | 'verify_email' | 'change_email';
 
 /** A link ready to give to someone. path is relative to the web app; url is set when publicUrl is configured. */
-export type Link = { purpose: LinkPurpose; path: string; url: string | null; expiresAt: Date; to: string };
+export type Link = {
+  purpose: LinkPurpose; path: string; url: string | null; expiresAt: Date; to: string;
+  /** With email on: whether it was emailed. False means sending failed (sendError says why); pass it on by hand. */
+  sent?: boolean;
+  sendError?: string;
+};
 
 /**
  * How links reach people. Without it (the default), nothing is sent: links
@@ -53,6 +58,10 @@ export type Link = { purpose: LinkPurpose; path: string; url: string | null; exp
  */
 export interface Delivery {
   send(message: { link: Link; user: AuthUser; appName: string }): Promise<void>;
+  /** For the admin's status line, e.g. "smtp.example.com:587, from no-reply@example.com". */
+  describe?(): string;
+  /** Send a test message (the admin's "Send test email"). */
+  sendTest?(to: string, appName: string): Promise<void>;
 }
 
 /** Wraps two-factor secrets before they are stored, e.g. with the app's field encryption. */
@@ -65,7 +74,7 @@ export type AuthEvent = {
     | 'email_verified' | 'email_changed' | 'email_change_requested'
     | 'link_created' | 'request_dismissed'
     | 'two_factor_enabled' | 'two_factor_disabled' | 'two_factor_reset' | 'recovery_codes_regenerated'
-    | 'signed_out_everywhere' | 'user_deleted';
+    | 'signed_out_everywhere' | 'user_deleted' | 'email_failed';
   /** Who did it: the user themselves, or an admin. Null when unknown (e.g. a failed sign-in for an unknown email). */
   actorId: string | null;
   userId: string | null;
@@ -79,7 +88,7 @@ export type AuthConfig = {
   accessTokenTtl?: number;
   /** Shown in authenticator apps. */
   appName: string;
-  /** e.g. https://hr.example.com. Needed for Delivery (emails carry full links); otherwise links are relative. */
+  /** e.g. https://hr.example.com. Required with delivery (emails carry full links); otherwise links are relative and the admin's browser completes them. */
   publicUrl?: string;
   /** Web pages the links open. Defaults: /reset-password, /verify-email. */
   pages?: { resetPassword?: string; verifyEmail?: string };
@@ -92,7 +101,7 @@ export type AuthConfig = {
 };
 
 export class AuthError extends Error {
-  constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 410 | 429, message: string, public readonly code: string) {
+  constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 410 | 429 | 502, message: string, public readonly code: string) {
     super(message);
   }
 }

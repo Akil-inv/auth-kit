@@ -41,6 +41,7 @@ export class AuthService {
 
   constructor(private config: AuthConfig, private users: UserAdapter, db: Db) {
     if (!config.jwtSecret || config.jwtSecret.length < 16) throw new Error('auth-kit: jwtSecret must be at least 16 characters.');
+    if (config.delivery && !config.publicUrl) throw new Error('auth-kit: set publicUrl (the address people open the app at) when links are emailed.');
     this.store = new Store(db);
   }
 
@@ -126,13 +127,14 @@ export class AuthService {
     this.fail(`forgot:${key}`); // counts requests, not failures
     const user = EMAIL.test(key) ? await this.users.findByEmail(key) : null;
     if (user) {
-      if (this.config.delivery) await this.issueLink(user, 'reset_password', null, null);
-      else await this.store.addRequest(user.id, 'password_reset', null);
+      const sent = this.config.delivery ? (await this.issueLink(user, 'reset_password', null, null)).sent : false;
+      // Not emailed (no email server, or sending failed): an admin sends it instead.
+      if (!sent) await this.store.addRequest(user.id, 'password_reset', null);
       await this.emit({ type: 'password_reset_requested', actorId: user.id, userId: user.id });
     }
     return {
       message: this.config.delivery
-        ? 'If that email has an account, a link to reset the password is on its way.'
+        ? "If that email has an account, a link to reset the password is on its way. If it hasn't arrived in a few minutes, check spam or ask an administrator."
         : 'If that email has an account, an administrator has been asked to send you a reset link.',
     };
   }
@@ -218,8 +220,10 @@ export class AuthService {
     if (other && other.id !== user.id) throw new AuthError(409, 'Another account uses that email.', 'email_taken');
     await this.emit({ type: 'email_change_requested', actorId: user.id, userId: user.id, detail: { to: email } });
     if (this.config.delivery) {
-      await this.issueLink(user, 'change_email', email, null);
-      return { message: `A link to confirm ${email} is on its way to that address. Your email changes once you open it.` };
+      const link = await this.issueLink(user, 'change_email', email, null);
+      if (link.sent) return { message: `A link to confirm ${email} is on its way to that address. Your email changes once you open it.` };
+      await this.store.addRequest(user.id, 'email_change', email);
+      return { message: `We couldn't email ${email} just now, so an administrator will send you the link to confirm it. Your email changes once you open it.` };
     }
     await this.store.addRequest(user.id, 'email_change', email);
     return { message: `An administrator will send you a link to confirm ${email}. Your email changes once you open it.` };
@@ -287,6 +291,27 @@ export class AuthService {
       if (user) out[id] = this.summary(user, states.get(id)!, await this.store.pendingEmailChange(id));
     }
     return out;
+  }
+
+  /** Whether links are emailed, for the admin's screens. */
+  async adminSettings(actor: Actor): Promise<{ email: { on: boolean; description: string | null } }> {
+    await this.mustBeAdmin(actor);
+    const d = this.config.delivery;
+    return { email: { on: !!d, description: d?.describe?.() ?? null } };
+  }
+
+  /** Send a test email, to check the server settings. */
+  async adminTestEmail(actor: Actor, to: string): Promise<{ message: string }> {
+    await this.mustBeAdmin(actor);
+    const d = this.config.delivery;
+    if (!d?.sendTest) throw new AuthError(400, 'Email is not set up, so nothing can be sent.', 'email_off');
+    const email = this.cleanEmail(to);
+    try {
+      await d.sendTest(email, this.config.appName);
+    } catch (e: any) {
+      throw new AuthError(502, `Couldn't send: ${e?.message ?? e}`, 'email_failed');
+    }
+    return { message: `Test email sent to ${email}. If it doesn't arrive, check spam, then the server settings.` };
   }
 
   async adminRequests(actor: Actor): Promise<OpenRequest[]> {
@@ -438,7 +463,17 @@ export class AuthService {
     const path = `${page}?token=${token}`;
     const link: Link = { purpose, path, url: this.config.publicUrl ? `${this.config.publicUrl.replace(/\/$/, '')}${path}` : null, expiresAt, to: newEmail ?? user.email };
     await this.emit({ type: 'link_created', actorId: by ?? user.id, userId: user.id, detail: { purpose, expiresAt: expiresAt.toISOString() } });
-    if (this.config.delivery) await this.config.delivery.send({ link, user, appName: this.config.appName });
+    if (this.config.delivery) {
+      // A failed send never loses the link: it is returned (and queued for an admin) to pass on by hand.
+      try {
+        await this.config.delivery.send({ link, user, appName: this.config.appName });
+        link.sent = true;
+      } catch (e: any) {
+        link.sent = false;
+        link.sendError = String(e?.message ?? e).slice(0, 300);
+        await this.emit({ type: 'email_failed', actorId: by ?? user.id, userId: user.id, detail: { purpose, error: link.sendError } });
+      }
+    }
     return link;
   }
 
