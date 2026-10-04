@@ -1,0 +1,83 @@
+{
+  "name": "@akil-inv/auth-kit",
+  "version": "0.1.0",
+  "description": "Reusable authentication for NestJS + React apps: sign-in with two-factor, email verification, password reset, and admin user management. Each app keeps its own users table.",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/server/index.js",
+  "types": "dist/server/index.d.ts",
+  "exports": {
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./nest": {
+      "types": "./dist/nest/index.d.ts",
+      "default": "./dist/nest/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./sql/*": "./sql/*",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "server": [
+        "dist/server/index.d.ts"
+      ],
+      "nest": [
+        "dist/nest/index.d.ts"
+      ],
+      "client": [
+        "dist/client/index.d.ts"
+      ],
+      "react": [
+        "dist/react/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "sql",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "pack:release": "npm run build && npm pack"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "peerDependencies": {
+    "@nestjs/common": ">=9",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/common": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@nestjs/common": "^10.4.22",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.31",
+    "pg": "^8.23.1",
+    "react": "^18.3.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}
