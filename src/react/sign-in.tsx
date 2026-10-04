@@ -162,16 +162,17 @@ export function ResetPasswordForm({ token, onSignedIn, signInHref = '/login', mi
 }
 
 /** Opens a confirmation link: confirms an email, or completes an email change. */
-export function VerifyEmail({ token, signInHref = '/login' }: { token: string; signInHref?: string }) {
+export function VerifyEmail({ token, signInHref = '/login', onVerified }: { token: string; signInHref?: string; onVerified?: (email: string) => void }) {
   const { client, t } = useAuthKit();
   const [state, setState] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
     if (!token) { setState({ ok: false, text: 'This link is missing its code. Open the full link you were given.' }); return; }
     let live = true;
     client.verifyEmail(token)
-      .then((r) => live && setState({ ok: true, text: `Confirmed. You now sign in with ${r.email}.` }))
+      .then((r) => { if (!live) return; setState({ ok: true, text: `Confirmed. You now sign in with ${r.email}.` }); onVerified?.(r.email); })
       .catch((e) => live && setState({ ok: false, text: e.message }));
     return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, token]);
   return (
     <div className={`space-y-4 ${t.card}`}>
