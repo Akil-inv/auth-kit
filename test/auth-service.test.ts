@@ -234,6 +234,17 @@ describe('two-factor', () => {
   });
 });
 
+describe('confirming the password', () => {
+  it('confirms the sign-in password, and limits guesses', async () => {
+    users.set('cara', { id: 'cara', email: 'cara@example.com', passwordHash: await hashPassword('cara-first-password'), role: 'HR', name: 'Cara' });
+    const me = { id: 'cara' } as any;
+    expect(await auth.confirmPassword(me, 'cara-first-password')).toBe(true);
+    expect(await auth.confirmPassword(me, 'nope')).toBe(false);
+    for (let i = 0; i < 9; i++) await auth.confirmPassword(me, 'nope');
+    expect((await err(() => auth.confirmPassword(me, 'cara-first-password')))?.code).toBe('too_many_attempts');
+  });
+});
+
 describe('changing your password, deleting a user', () => {
   it('change password: needs the current one, ends other sessions, keeps this one', async () => {
     const r = await auth.login('ann@example.com', 'ann-third-password');
@@ -270,6 +281,7 @@ describe('the database never holds a usable link or recovery code', () => {
     const rows = await pool.query(`SELECT token_hash FROM auth_links LIMIT 5`);
     for (const r of rows.rows) expect(r.token_hash).toMatch(/^[0-9a-f]{64}$/);
   });
+
 });
 
 

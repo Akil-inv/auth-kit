@@ -91,6 +91,12 @@ async validate(payload) {
 }
 ```
 
+Before something sensitive in your own app (a setting, a download), re-check the sign-in password. Wrong guesses share the 10-in-15-minutes limit with changing the password:
+
+```ts
+if (!(await this.auth.confirmPassword({ id: user.sub }, body.password))) throw new BadRequestException('Your password is not right.');
+```
+
 ### 5. Add the screens (React / Next.js)
 
 ```tsx

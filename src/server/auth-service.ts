@@ -192,6 +192,19 @@ export class AuthService {
     return { email: user.email, ...this.summary(user, await this.store.state(user.id), await this.store.pendingEmailChange(user.id)) };
   }
 
+  /**
+   * Re-check your sign-in password before something sensitive (the app's own
+   * settings, a download). True or false; wrong guesses count towards the same
+   * 10-in-15-minutes limit as changing the password, then it refuses.
+   */
+  async confirmPassword(actor: Actor, password: string): Promise<boolean> {
+    const user = await this.mustFind(actor.id);
+    this.throttle(`password:${user.id}`);
+    const ok = await this.checkPassword(user, String(password ?? ''));
+    if (!ok) this.fail(`password:${user.id}`);
+    return ok;
+  }
+
   /** Change your own password. Other sessions end; this one gets a new token. */
   async changePassword(actor: Actor, current: string, next: string): Promise<SignedIn> {
     const user = await this.mustFind(actor.id);
