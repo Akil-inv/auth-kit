@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { SignedIn, UserSecurity } from '../client';
 import { Alert, CopyButton, Field, useAction, useAuthKit } from './ui';
 
-type Me = UserSecurity & { email: string };
+type Me = UserSecurity & { email: string; twoFactorAvailable?: boolean };
 
 /**
  * The signed-in person's own security: password, email, two-factor.
@@ -24,7 +24,8 @@ export function AccountSecurity({ onTokenChanged, minLength = 10 }: { onTokenCha
     <div className="space-y-6">
       <PasswordSection minLength={minLength} onTokenChanged={onTokenChanged} />
       <EmailSection me={me} onChanged={load} />
-      <TwoFactorSection me={me} onChanged={load} />
+      {/* Hidden when the app has switched two-factor off (older servers don't say: shown). */}
+      {me.twoFactorAvailable !== false && <TwoFactorSection me={me} onChanged={load} />}
     </div>
   );
 }

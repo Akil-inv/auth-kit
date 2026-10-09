@@ -33,6 +33,8 @@ const adapter: UserAdapter = {
 };
 
 let auth: AuthService;
+/** The app's two-factor switch, as an app setting would hold it. */
+let twoFactorSwitch = true;
 const tokenOf = (path: string) => new URL(path, 'http://x').searchParams.get('token')!;
 const err = async (f: () => Promise<unknown>) => { try { await f(); return null; } catch (e) { return e as AuthError; } };
 const actorFor = async (token: string) => (await auth.verifyAccessToken(token))!;
@@ -45,7 +47,7 @@ beforeAll(async () => {
   pool = new Pool({ ...PG, database: DB_NAME });
   await pool.query(readFileSync(__dirname + '/../sql/001_auth_kit.sql', 'utf8'));
   auth = new AuthService(
-    { jwtSecret: 'test-secret-test-secret', appName: 'Test App', onEvent: (e) => { events.push(e); } },
+    { jwtSecret: 'test-secret-test-secret', appName: 'Test App', onEvent: (e) => { events.push(e); }, twoFactor: async () => twoFactorSwitch },
     adapter,
     { query: async (sql, params) => (await pool.query(sql, params as any[])).rows as any },
   );
@@ -224,6 +226,26 @@ describe('two-factor', () => {
     const link = await auth.adminResetLink(await actorFor(a.accessToken), 'ann');
     const r = await auth.resetPassword(tokenOf(link.path), 'ann-third-password');
     expect(r.status).toBe('two_factor_required');
+  });
+
+  it('switched off by the app: no code is asked, set-up is refused; switched back on: asked again', async () => {
+    twoFactorSwitch = false;
+    try {
+      const r = await auth.login('ann@example.com', 'ann-third-password');
+      expect(r.status).toBe('signed_in');
+      if (r.status !== 'signed_in') throw new Error();
+      const ann = await actorFor(r.accessToken);
+      const me = await auth.me(ann);
+      expect(me.twoFactor).toBe(true); // her set-up is kept
+      expect(me.twoFactorAvailable).toBe(false);
+      const b = await auth.login('boss@example.com', 'boss-password-1');
+      if (b.status !== 'signed_in') throw new Error();
+      const boss = await actorFor(b.accessToken);
+      expect((await err(() => auth.twoFactorSetup(boss)))?.code).toBe('two_factor_off');
+    } finally {
+      twoFactorSwitch = true;
+    }
+    expect((await auth.login('ann@example.com', 'ann-third-password')).status).toBe('two_factor_required');
   });
 
   it('an admin can reset two-factor for someone who lost their phone', async () => {

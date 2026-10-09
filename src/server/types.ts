@@ -98,6 +98,13 @@ export type AuthConfig = {
   delivery?: Delivery;
   secretBox?: SecretBox;
   onEvent?: (event: AuthEvent) => void | Promise<void>;
+  /**
+   * Whether two-factor sign-in is in use, asked on every sign-in (so an app
+   * setting can switch it without a restart). Default: on. When it returns
+   * false, nobody is asked for a code and nobody can set it up; people who
+   * had it keep their set-up, and are asked again once it is back on.
+   */
+  twoFactor?: () => boolean | Promise<boolean>;
 };
 
 export class AuthError extends Error {

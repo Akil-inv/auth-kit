@@ -70,7 +70,7 @@ export function createAuthClient(options: AuthClientOptions = {}) {
     verifyEmail: (token: string) => post<{ email: string }>('/verify-email', { token }, false),
 
     // The signed-in person
-    me: () => call<UserSecurity & { email: string }>('GET', '/me'),
+    me: () => call<UserSecurity & { email: string; twoFactorAvailable?: boolean }>('GET', '/me'),
     changePassword: (currentPassword: string, newPassword: string) => post<SignedIn>('/password', { currentPassword, newPassword }),
     requestEmailChange: (password: string, newEmail: string) => post<{ message: string }>('/email', { password, newEmail }),
     twoFactorSetup: () => post<{ secret: string; otpauthUrl: string; qrSvg: string }>('/two-factor/setup'),

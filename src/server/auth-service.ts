@@ -62,7 +62,7 @@ export class AuthService {
       throw new AuthError(403, 'Finish setting up your account first, using the link you were given.', 'not_verified');
     }
     this.failures.delete(`login:${key}`);
-    if (state.totpEnabledAt) {
+    if (state.totpEnabledAt && (await this.twoFactorOn())) {
       const challenge = signJwt({ sub: user.id, purpose: '2fa', tv: state.tokenVersion, jti: randomUUID() }, this.config.jwtSecret, 300);
       return { status: 'two_factor_required', challenge };
     }
@@ -162,7 +162,7 @@ export class AuthService {
     this.current.delete(user.id);
     await this.emit({ type: 'password_reset', actorId: user.id, userId: user.id, detail: { via: row.purpose } });
     const state = await this.store.state(user.id);
-    if (state.totpEnabledAt) {
+    if (state.totpEnabledAt && (await this.twoFactorOn())) {
       // A reset link is not a second factor: still ask for the code.
       return { status: 'two_factor_required', challenge: signJwt({ sub: user.id, purpose: '2fa', tv: state.tokenVersion, jti: randomUUID() }, this.config.jwtSecret, 300) };
     }
@@ -187,9 +187,13 @@ export class AuthService {
 
   // ─── The signed-in person ───────────────────────────────────────────────
 
-  async me(actor: Actor): Promise<UserSecurity & { email: string }> {
+  async me(actor: Actor): Promise<UserSecurity & { email: string; twoFactorAvailable: boolean }> {
     const user = await this.mustFind(actor.id);
-    return { email: user.email, ...this.summary(user, await this.store.state(user.id), await this.store.pendingEmailChange(user.id)) };
+    return {
+      email: user.email,
+      ...this.summary(user, await this.store.state(user.id), await this.store.pendingEmailChange(user.id)),
+      twoFactorAvailable: await this.twoFactorOn(),
+    };
   }
 
   /**
@@ -246,6 +250,7 @@ export class AuthService {
 
   /** Start setting up an authenticator app. Not on until a code from it is checked. */
   async twoFactorSetup(actor: Actor): Promise<{ secret: string; otpauthUrl: string; qrSvg: string }> {
+    await this.mustHaveTwoFactor();
     const user = await this.mustFind(actor.id);
     const state = await this.store.state(user.id);
     if (state.totpEnabledAt) throw new AuthError(409, 'Two-factor is already on. Turn it off first to set up a new app.', 'already_on');
@@ -258,6 +263,7 @@ export class AuthService {
 
   /** Turn two-factor on with a first code. Returns recovery codes, shown once. */
   async twoFactorEnable(actor: Actor, code: string): Promise<{ recoveryCodes: string[] }> {
+    await this.mustHaveTwoFactor();
     const state = await this.store.state(actor.id);
     if (state.totpEnabledAt) throw new AuthError(409, 'Two-factor is already on.', 'already_on');
     if (!state.totpSecret) throw new AuthError(400, 'Start the set-up first.', 'no_setup');
@@ -423,6 +429,15 @@ export class AuthService {
   }
 
   // ─── Inside ─────────────────────────────────────────────────────────────
+
+  /** The app's two-factor switch (config.twoFactor); on when the app has none. */
+  private async twoFactorOn(): Promise<boolean> {
+    return this.config.twoFactor ? (await this.config.twoFactor()) !== false : true;
+  }
+
+  private async mustHaveTwoFactor() {
+    if (!(await this.twoFactorOn())) throw new AuthError(403, 'Two-factor sign-in is switched off for this app.', 'two_factor_off');
+  }
 
   private async signIn(user: AuthUser, state: State, recordLogin = true): Promise<SignedIn> {
     const claims = await this.users.claims(user);

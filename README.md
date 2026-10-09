@@ -177,6 +177,7 @@ config: {
 | `delivery` | Emails links (see step 6). Any object with `send({ link, user, appName })` works, e.g. an API-based mail service. |
 | `secretBox: { seal, open }` | Encrypts two-factor secrets at rest, e.g. with your app's field encryption. |
 | `onEvent(e)` | Every sign-in, failure, reset, change and admin action, for your audit log. |
+| `twoFactor: () => boolean` | Your app's two-factor switch, asked at each sign-in (default on). When it returns false nobody is asked for a code and set-up is refused; existing set-ups are kept and apply again when it is back on. `AccountSecurity` hides its two-factor section while it is off. |
 | `passwordMinLength` | Minimum password length. Default 10. |
 | `linkTtlHours` | How long links last. Default: reset 24h, invite 7 days, verify 7 days. |
 | `accessTokenTtl` | Access token lifetime in seconds. Default 24h. |
