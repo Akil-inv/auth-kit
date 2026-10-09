@@ -86,7 +86,7 @@ export class AuthService {
       throw new AuthError(401, 'That code is not right. Check your authenticator app and try again.', 'invalid_code');
     }
     this.challenges.delete(c.jti);
-    return this.signIn(user, await this.store.state(user.id));
+    return this.signIn(user, await this.store.state(user.id), true, true);
   }
 
   /** A valid, current access token's holder, or null. Checks it has not been signed out. */
@@ -415,6 +415,21 @@ export class AuthService {
     await this.emit({ type: 'signed_out_everywhere', actorId: actor.id, userId: user.id });
   }
 
+  /**
+   * After the app switches two-factor back on: end the sessions of everyone
+   * who has it set up, so sessions started without a code while it was off
+   * don't carry on; their next sign-in asks for the code. Returns how many.
+   */
+  async adminSignOutTwoFactorUsers(actor: Actor): Promise<number> {
+    await this.mustBeAdmin(actor);
+    const ids = await this.store.bumpTokenVersionForTwoFactorUsers();
+    for (const id of ids) {
+      this.current.delete(id);
+      await this.emit({ type: 'signed_out_everywhere', actorId: actor.id, userId: id, detail: { reason: 'two_factor_switched_on' } });
+    }
+    return ids.length;
+  }
+
   async adminDeleteUser(actor: Actor, userId: string): Promise<void> {
     if (actor.id === userId) throw new AuthError(400, "You can't delete your own account.", 'self');
     const user = await this.manage(actor, userId);
@@ -439,13 +454,14 @@ export class AuthService {
     if (!(await this.twoFactorOn())) throw new AuthError(403, 'Two-factor sign-in is switched off for this app.', 'two_factor_off');
   }
 
-  private async signIn(user: AuthUser, state: State, recordLogin = true): Promise<SignedIn> {
+  /** `withCode`: a second factor was checked for this sign-in (recorded in the login event). */
+  private async signIn(user: AuthUser, state: State, recordLogin = true, withCode = false): Promise<SignedIn> {
     const claims = await this.users.claims(user);
     const ttl = this.config.accessTokenTtl ?? 24 * 3600;
     const accessToken = signJwt({ ...claims, sub: user.id, email: user.email, tv: state.tokenVersion }, this.config.jwtSecret, ttl);
     if (recordLogin) {
       await this.store.update(user.id, { lastLoginAt: new Date() });
-      await this.emit({ type: 'login', actorId: user.id, userId: user.id, detail: { twoFactor: !!state.totpEnabledAt } });
+      await this.emit({ type: 'login', actorId: user.id, userId: user.id, detail: { twoFactor: withCode } });
     }
     return { status: 'signed_in', accessToken, user: { ...claims, id: user.id, email: user.email } };
   }

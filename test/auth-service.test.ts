@@ -242,6 +242,13 @@ describe('two-factor', () => {
       if (b.status !== 'signed_in') throw new Error();
       const boss = await actorFor(b.accessToken);
       expect((await err(() => auth.twoFactorSetup(boss)))?.code).toBe('two_factor_off');
+      // A session started without the code while it was off…
+      const loginEvent = events.filter((e) => e.type === 'login').at(-2);
+      expect(loginEvent?.detail).toEqual({ twoFactor: false });
+      twoFactorSwitch = true;
+      // …ends when the app switches it back on and signs out its users.
+      expect(await auth.adminSignOutTwoFactorUsers(boss)).toBe(1);
+      expect(await auth.verifyAccessToken(r.accessToken)).toBeNull();
     } finally {
       twoFactorSwitch = true;
     }

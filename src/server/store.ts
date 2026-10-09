@@ -97,6 +97,14 @@ export class Store {
     await this.db.query(`UPDATE "auth_state" SET ${sets.join(', ')} WHERE "user_id" = $1`, values);
   }
 
+  /** End the sessions of everyone with two-factor set up; their ids. */
+  async bumpTokenVersionForTwoFactorUsers(): Promise<string[]> {
+    const rows = await this.db.query<{ user_id: string }>(
+      `UPDATE "auth_state" SET "token_version" = "token_version" + 1, "updated_at" = now() WHERE "totp_enabled_at" IS NOT NULL RETURNING "user_id"`,
+    );
+    return rows.map((r) => r.user_id);
+  }
+
   async deleteUser(userId: string) {
     await this.db.query(`DELETE FROM "auth_links" WHERE "user_id" = $1`, [userId]);
     await this.db.query(`DELETE FROM "auth_requests" WHERE "user_id" = $1`, [userId]);
